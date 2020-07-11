@@ -3,10 +3,8 @@ function HTMLActuator() {
   this.scoreContainer   = document.querySelector(".score-container");
   this.bestContainer    = document.querySelector(".best-container");
   this.messageContainer = document.querySelector(".game-message");
-  this.sharingContainer = document.querySelector(".score-sharing");
 
   this.score = 0;
-  this.highestTile = 1;
 }
 
 HTMLActuator.prototype.actuate = function (grid, metadata) {
@@ -25,7 +23,6 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
 
     self.updateScore(metadata.score);
     self.updateBestScore(metadata.bestScore);
-    self.highestTile = metadata.highest;
 
     if (metadata.terminated) {
       if (metadata.over) {
@@ -40,10 +37,6 @@ HTMLActuator.prototype.actuate = function (grid, metadata) {
 
 // Continues the game (both restart and keep playing)
 HTMLActuator.prototype.continue = function () {
-  if (typeof ga !== "undefined") {
-    ga("send", "event", "game", "restart");
-  }
-
   this.clearMessage();
 };
 
@@ -64,7 +57,7 @@ HTMLActuator.prototype.addTile = function (tile) {
   // We can't use classlist because it somehow glitches when replacing classes
   var classes = ["tile", "tile-" + tile.value, positionClass];
 
-  if (tile.value > 768) classes.push("tile-super");
+  if (tile.value > 6144) classes.push("tile-super");
 
   this.applyClasses(wrapper, classes);
 
@@ -133,143 +126,14 @@ HTMLActuator.prototype.updateBestScore = function (bestScore) {
 
 HTMLActuator.prototype.message = function (won) {
   var type    = won ? "game-won" : "game-over";
-  var message = won ? "You won!" : "No more moves. Game over.";
-
-  // Build some firebase references.
-  var rootRef = new Firebase('https://20-euros.firebaseio.com');
-  var scoreListRef = rootRef.child("scoreList");
-  var highestScoreRef = rootRef.child("highestScore");
-  var RefPlays = rootRef.child("plays");
-  var Ref768 = rootRef.child("reached_768");
-
-  // Keep a mapping of firebase locations to HTML elements, so we can move / remove elements as necessary.
-  var htmlForPath = {};
-
-  // Helper function that takes a new score snapshot and adds an appropriate row to our leaderboard table.
-  function handleScoreAdded(scoreSnapshot, prevScoreName) {
-    var newScoreRow = $("<tr/>");
-    newScoreRow.append($("<td/>").append($("<em/>").text(scoreSnapshot.val().name)));
-    newScoreRow.append($("<td/>").text(scoreSnapshot.val().score));
-
-    // Store a reference to the table row so we can get it again later.
-    htmlForPath[scoreSnapshot.name()] = newScoreRow;
-
-    // Insert the new score in the appropriate place in the table.
-    if (prevScoreName === null) {
-      $("#leaderboardTable").append(newScoreRow);
-    }
-    else {
-      var lowerScoreRow = htmlForPath[prevScoreName];
-      lowerScoreRow.before(newScoreRow);
-    }
-  }
-
-  // Helper function to handle a score object being removed; just removes the corresponding table row.
-  function handleScoreRemoved(scoreSnapshot) {
-    var removedScoreRow = htmlForPath[scoreSnapshot.name()];
-    removedScoreRow.remove();
-    delete htmlForPath[scoreSnapshot.name()];
-  }
-
-function makeid()
-{
-    var text = "";
-    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-    for( var i=0; i < 8; i++ )
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-
-    return text;
-}
-
-  // Create a view to only receive callbacks for the last LEADERBOARD_SIZE scores
-  var scoreListView = scoreListRef.limit(10);
-
-  // Add a callback to handle when a new score is added.
-  scoreListView.on('child_added', function (newScoreSnapshot, prevScoreName) {
-    handleScoreAdded(newScoreSnapshot, prevScoreName);
-  });
-
-  // Add a callback to handle when a score is removed
-  scoreListView.on('child_removed', function (oldScoreSnapshot) {
-    handleScoreRemoved(oldScoreSnapshot);
-  });
-
-  // Add a callback to handle when a score changes or moves positions.
-  var changedCallback = function (scoreSnapshot, prevScoreName) {
-    handleScoreRemoved(scoreSnapshot);
-    handleScoreAdded(scoreSnapshot, prevScoreName);
-  };
-  scoreListView.on('child_moved', changedCallback);
-  scoreListView.on('child_changed', changedCallback);
-
-      var newScore = this.score;
-      var name = makeid();
-      $("#scoreInput").val("");
-
-      var userScoreRef = scoreListRef.child(name);
-
-      // Use setWithPriority to put the name / score in Firebase, and set the priority to be the score.
- if ((newScore <= 192)||(this.highestTile >= 768)){
-      userScoreRef.setWithPriority({ name:name, score:newScore, highest:this.highestTile }, newScore);}
-
-// Track the highest score using a transaction.  A transaction guarantees that the code inside the block is
-      // executed on the latest data from the server, so transactions should be used if you have multiple
-      // clients writing to the same data and you want to avoid conflicting changes.
-      highestScoreRef.transaction(function (currentHighestScore) {
-        if (currentHighestScore === null || newScore > currentHighestScore) {
-          // The return value of this function gets saved to the server as the new highest score.
-          return newScore;
-        }
-        // if we return with no arguments, it cancels the transaction.
-        return;
-      });
-
-    RefPlays.transaction(function(current_value) {
-      return current_value + 1;
-    });
-
-   if (this.highestTile >= 768){
-     Ref50.transaction(function(current_value) {
-      return current_value + 1;
-    });
-  }
-
-
-  // Add a callback to the highest score in Firebase so we can update the GUI any time it changes.
-  highestScoreRef.on('value', function (newHighestScore) {
-    $("#highestScoreDiv").text(newHighestScore.val());
-  });
-
-  if (typeof ga !== "undefined") {
-    ga("send", "event", "game", "end", type, this.score);
-  }
+  var message = won ? "You win!" : "Game over!";
 
   this.messageContainer.classList.add(type);
   this.messageContainer.getElementsByTagName("p")[0].textContent = message;
-
-  this.clearContainer(this.sharingContainer);
-  this.sharingContainer.appendChild(this.scoreTweetButton());
-  twttr.widgets.load();
 };
 
 HTMLActuator.prototype.clearMessage = function () {
   // IE only takes one value to remove at a time.
   this.messageContainer.classList.remove("game-won");
   this.messageContainer.classList.remove("game-over");
-};
-
-HTMLActuator.prototype.scoreTweetButton = function () {
-  var tweet = document.createElement("a");
-  tweet.classList.add("twitter-share-button");
-  tweet.setAttribute("href", "https://twitter.com/share");
-  tweet.setAttribute("data-via", "gabrielecirulli");
-  tweet.setAttribute("data-url", "http://git.io/2048");
-  tweet.setAttribute("data-counturl", "http://gabrielecirulli.github.io/2048/");
-  tweet.textContent = "Tweet";
-  var text = "I got " + this.score + " points in 768, a game where you " +
-             "join numbers to score high! #768game";
-  tweet.setAttribute("data-text", text);
-
-  return tweet;
 };
